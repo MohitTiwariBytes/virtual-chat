@@ -14,7 +14,16 @@ app.use(express.json());
 // API endpoint for chat
 app.post('/api/chat', async (req, res) => {
   try {
+    
     const { messages } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ 
+        error: 'Messages array is required',
+        received: req.body 
+      });
+    }
+
 
     const response = await fetch('https://ai.hackclub.com/proxy/v1/chat/completions', {
       method: 'POST',
@@ -29,10 +38,11 @@ app.post('/api/chat', async (req, res) => {
       }),
     });
 
+
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error('API Error:', errorData);
-      return res.status(response.status).json({ error: errorData });
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      return res.status(response.status).json({ error: errorText });
     }
 
     const data = await response.json();
@@ -54,7 +64,7 @@ async function startServer() {
   app.use(vite.middlewares);
 
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 

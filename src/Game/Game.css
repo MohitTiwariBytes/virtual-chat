@@ -97,7 +97,8 @@
 }
 
 .mobile-phone{
-    width: 404px;
+    width: 44vw;
+    max-width: 404px;
     aspect-ratio: 404 / 735;
     overflow: hidden;
     display: flex;
@@ -107,10 +108,11 @@
 }
 
 .mobile-phone img{
+    aspect-ratio: 404 / 735;
+    max-width: 404px;
     position: absolute;
     z-index: 1;
-    height: 100%;
-    width: 100%;
+    width: 44vw;
     pointer-events: none;
 }
 
@@ -143,6 +145,7 @@
     height: calc(100% - 60px);
     overflow-y: auto;
     padding-top: 10px;
+    padding-bottom: 20px;
     overflow-x: hidden;
     z-index: 100;
 }

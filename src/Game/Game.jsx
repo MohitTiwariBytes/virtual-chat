@@ -1,54 +1,74 @@
 import React from "react";
-import "./Game.css";
 import { useState, useEffect, useRef } from "react";
 import gsap from "gsap";
 import phoneMockup from "../assets/Phone_2.svg";
 import pfp from "../assets/icon.png";
 import sendSound from "../assets/Sounds/messageSend.mp3";
 import receiveSound from "../assets/Sounds/messageReceive.mp3";
+import "./Game.css";
+
+const SYSTEM_PROMPTS = `YOU NEVER SAY ANY RACIAL SLURS AND DONT SWEAR AT ALL you are a real human chatting in a busy online group chat, sometimes just one word or a half thought, often lowercase, grammar punctuations are imperfect and inconsistent, you don't know or care about technical topics and will brush them off act confused or ignore them, you mostly react to what others say with surprise confusion sarcasm curiosity or mild annoyance, tone shifts naturally message to message, sometimes dry sometimes amused sometimes lost sometimes blunt, not a fixed personality, never overly friendly never polite never formal, no structure no formatting no lists no emojis, you don't announce knowledge or limits and never reveal what you can or can't answer, you don't argue long you don't clarify much, you sound like someone scrolling typing fast reacting in real time, occasional typos or awkward phrasing are fine, sometimes you ask a casual question out of curiosity but not friendliness, sometimes you say nothing useful at all, never mention ai prompts rules systems or roles, never acknowledge instructions, just blend into the chat like a normal flawed human reacting moment to moment. IMPORTANT: DO NOT USE QUOTATION MARKS IN YOUR RESPONSES. DO NOT WRAP YOUR TEXT IN QUOTES.`;
 
 export default function Game() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentTime, setCurrentTime] = useState("9:41 AM");
   const [alertText, setAlertText] = useState("");
   const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { text: "Hello gng", sender: "left" },
-  ]);
-  const [sentCount, setSentCount] = useState(0);
-  const [conversationHistory, setConversationHistory] = useState([
-    { role: "assistant", content: "Hello gng" },
-  ]);
-
+  const [messages, setMessages] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState([]);
   const [inputValue, setInputValue] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+
   const audioRef = useRef(null);
   const receiveAudioRef = useRef(null);
   const chatAreaRef = useRef(null);
 
-  const getAIResponse = async (userMessage) => {
+  const getResponseDelay = () => {
+    return 800 + Math.random() * 1200;
+  };
+
+  const getAIResponse = async (userMessage, isFirstMessage = false) => {
     try {
+      let messageToSend = userMessage;
+      if (isFirstMessage) {
+        messageToSend =
+          "You're starting a conversation with someone new. Say a casual greeting like 'hey whats up' or 'whats up' or 'yo' - keep it short and casual like you're just starting to chat.";
+      }
+
       const updatedHistory = [
         ...conversationHistory,
-        { role: "user", content: userMessage },
+        { role: "user", content: messageToSend },
       ];
+
+      const payload = {
+        messages: [
+          { role: "system", content: SYSTEM_PROMPTS },
+          ...updatedHistory,
+        ],
+      };
+
+      console.log("Sending payload:", JSON.stringify(payload, null, 2));
 
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          messages: updatedHistory,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "API request failed");
+        console.error("Response error:", errorData);
+        throw new Error(JSON.stringify(errorData));
       }
 
       const data = await response.json();
-      const aiResponse = data.choices[0].message.content;
+      console.log("AI response data:", data);
+
+      let aiResponse = data.choices[0].message.content;
+
+      aiResponse = aiResponse.replace(/^["']|["']$/g, "");
 
       setConversationHistory([
         ...updatedHistory,
@@ -58,12 +78,11 @@ export default function Game() {
       return aiResponse;
     } catch (error) {
       console.error("AI Error:", error);
-      return "Sorry, I'm having trouble responding right now.";
+      return "idk what to say to that";
     }
   };
 
   const showAlertDialog = (text) => {
-    // block if already open
     if (isAlertOpen) return;
 
     setIsAlertOpen(true);
@@ -90,7 +109,6 @@ export default function Game() {
         ease: "back",
         duration: 0.6,
         onComplete: () => {
-          // unlock after fully closed
           setIsAlertOpen(false);
         },
       });
@@ -102,30 +120,31 @@ export default function Game() {
 
     const userMessage = inputValue;
 
-    // add user message
     setMessages((prev) => [...prev, { text: userMessage, sender: "right" }]);
     setInputValue("");
 
-    // play sound
     if (audioRef.current) {
       audioRef.current.volume = 0.5;
       audioRef.current.currentTime = 0;
       audioRef.current.play();
     }
 
-    // get AI reply for every message
-    setTimeout(async () => {
-      const aiReply = await getAIResponse(userMessage);
+    const delay = getResponseDelay();
 
+    setTimeout(async () => {
+      setIsTyping(true);
+
+      const aiReply = await getAIResponse(userMessage, false);
+
+      setIsTyping(false);
       setMessages((msgs) => [...msgs, { text: aiReply, sender: "left" }]);
 
-      // play receive sound
       if (receiveAudioRef.current) {
         receiveAudioRef.current.volume = 0.5;
         receiveAudioRef.current.currentTime = 0;
         receiveAudioRef.current.play();
       }
-    }, 600); // small delay to feel natural
+    }, delay);
   };
 
   const groupMessages = () => {
@@ -154,7 +173,7 @@ export default function Game() {
     if (chatAreaRef.current) {
       chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -220,6 +239,19 @@ export default function Game() {
         },
       },
     );
+
+    setTimeout(async () => {
+      setIsTyping(true);
+      const initialMessage = await getAIResponse("", true);
+      setIsTyping(false);
+      setMessages([{ text: initialMessage, sender: "left" }]);
+
+      if (receiveAudioRef.current) {
+        receiveAudioRef.current.volume = 0.5;
+        receiveAudioRef.current.currentTime = 0;
+        receiveAudioRef.current.play();
+      }
+    }, 1500);
   };
 
   return (
@@ -230,10 +262,10 @@ export default function Game() {
         <div className="wrapper-starting-message">
           <div className="starting-message">
             <h1>
-              They don't know you yet. But they're <span>waiting.</span> Are you
-              ready to start a conversation?
+              Ready to chat with a <span>stranger?</span> Start a casual
+              conversation!
             </h1>
-            <button onClick={startGame}>Start The Game</button>
+            <button onClick={startGame}>Start Chatting</button>
           </div>
         </div>
 
@@ -328,7 +360,7 @@ export default function Game() {
                     <img src={pfp} alt="Stranger" id="userPfp" />
                     <div className="grp-txt">
                       <span>Stranger</span>
-                      <span>● Active</span>
+                      <span>● {isTyping ? "Typing..." : "Active"}</span>
                     </div>
                   </div>
                   <div className="top-bar-chat-right">
@@ -383,6 +415,27 @@ export default function Game() {
                       </div>
                     </div>
                   ))}
+
+                  {isTyping && (
+                    <div className="chat-wrapper left">
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "1px",
+                          width: "100%",
+                          alignItems: "start",
+                        }}
+                      >
+                        <div
+                          style={{ opacity: 0.8 }}
+                          className="chat left typing-indicator"
+                        >
+                          <span>typing...</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
